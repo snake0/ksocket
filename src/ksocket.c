@@ -502,7 +502,7 @@ int tcp_srv(void *arg)
 	struct sockaddr_in addr_cli;
 	char *tmp;
 	int addr_len;
-	unsigned long long size = 1, k, j, length, m;
+	unsigned long long size = 1, k, length, m;
 
 #ifdef KSOCKET_ADDR_SAFE
 		mm_segment_t old_fs;
@@ -556,7 +556,7 @@ int tcp_srv(void *arg)
 	// len = sprintf(buf, "%s", "Hello, welcome to ksocket tcp srv service\n");
 	// ksend(sockfd_cli, buf, len, 0);
 
-	for (j = 0; j < 1; ++j) {
+	while (!kthread_should_stop()) {
 		for (k = 6; k <= SIZE_SHIFT; ++k) {
 			for (m = 0; m < EVAL_ITER; ++m) {
 				length = krecv(sockfd_cli, (char *) buf, size << k, 0);
@@ -671,6 +671,8 @@ int tcp_cli(void *arg)
 	return 0;
 }
 
+static struct task_struct *srv_tsk = NULL;
+
 //module init and cleanup procedure
 static int ksocket_init(void)
 {
@@ -678,7 +680,7 @@ static int ksocket_init(void)
 		KSOCKET_NAME, KSOCKET_VERSION,
 		KSOCKET_DESCPT, KSOCKET_AUTHOR);
 	if (server) {
-		kthread_run(tcp_srv, NULL, "tcp_srv_kthread");
+		srv_tsk = kthread_run(tcp_srv, NULL, "tcp_srv_kthread");
 	} else {
 		kthread_run(tcp_cli, NULL,"tcp_cli_kthread");
 	}
@@ -688,26 +690,29 @@ static int ksocket_init(void)
 
 static void ksocket_exit(void)
 {
+	if (srv_tsk) {
+		kthread_stop(srv_tsk);
+	}
 	printk("ksocket exit\n");
 }
 
 module_init(ksocket_init);
 module_exit(ksocket_exit);
 
-EXPORT_SYMBOL(ksocket);
-EXPORT_SYMBOL(kbind);
-EXPORT_SYMBOL(klisten);
-EXPORT_SYMBOL(kconnect);
-EXPORT_SYMBOL(kaccept);
-EXPORT_SYMBOL(krecv);
-EXPORT_SYMBOL(ksend);
-EXPORT_SYMBOL(kshutdown);
-EXPORT_SYMBOL(kclose);
-EXPORT_SYMBOL(krecvfrom);
-EXPORT_SYMBOL(ksendto);
-EXPORT_SYMBOL(kgetsockname);
-EXPORT_SYMBOL(kgetpeername);
-EXPORT_SYMBOL(ksetsockopt);
-EXPORT_SYMBOL(kgetsockopt);
-EXPORT_SYMBOL(inet_addr);
-EXPORT_SYMBOL(inet_ntoa);
+// EXPORT_SYMBOL(ksocket);
+// EXPORT_SYMBOL(kbind);
+// EXPORT_SYMBOL(klisten);
+// EXPORT_SYMBOL(kconnect);
+// EXPORT_SYMBOL(kaccept);
+// EXPORT_SYMBOL(krecv);
+// EXPORT_SYMBOL(ksend);
+// EXPORT_SYMBOL(kshutdown);
+// EXPORT_SYMBOL(kclose);
+// EXPORT_SYMBOL(krecvfrom);
+// EXPORT_SYMBOL(ksendto);
+// EXPORT_SYMBOL(kgetsockname);
+// EXPORT_SYMBOL(kgetpeername);
+// EXPORT_SYMBOL(ksetsockopt);
+// EXPORT_SYMBOL(kgetsockopt);
+// EXPORT_SYMBOL(inet_addr);
+// EXPORT_SYMBOL(inet_ntoa);
