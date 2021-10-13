@@ -44,4 +44,12 @@ int kgetsockopt(ksocket_t socket, int level, int optname, void *optval, int *opt
 unsigned int inet_addr(char* ip);
 char *inet_ntoa(struct in_addr *in); /* DO NOT forget to kfree the return pointer */
 
+static inline long timespec_diff_ns(struct timespec *t1, struct timespec *t2) {
+	return (t1->tv_sec - t2->tv_sec) * NSEC_PER_SEC +
+    t1->tv_nsec - t2->tv_nsec;
+}
+
+#define SIZE_SHIFT 21UL
+#define EVAL_ITER 2000
+
 #endif /* !_ksocket_h_ */

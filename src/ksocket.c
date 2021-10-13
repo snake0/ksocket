@@ -16,6 +16,8 @@
 #include <linux/module.h>
 #include <linux/string.h>
 #include <linux/socket.h>
+#include <linux/kernel.h>
+#include <linux/kthread.h>
 #include <linux/net.h>
 #include <linux/in.h>
 #include <net/sock.h>
@@ -489,14 +491,18 @@ char *inet_ntoa(struct in_addr *in)
 
 static bool server = true;
 
+static int port = 4444;
+
+static char buf[1 << SIZE_SHIFT];
 
 int tcp_srv(void *arg)
 {
 	ksocket_t sockfd_srv, sockfd_cli;
 	struct sockaddr_in addr_srv;
 	struct sockaddr_in addr_cli;
-	char buf[BUF_SIZE], *tmp;
-	int addr_len, len;
+	char *tmp;
+	int addr_len;
+	unsigned long long size = 1, k, j, length, m;
 
 #ifdef KSOCKET_ADDR_SAFE
 		mm_segment_t old_fs;
@@ -513,7 +519,7 @@ int tcp_srv(void *arg)
 	addr_len = sizeof(struct sockaddr_in);
 	
 	sockfd_srv = ksocket(AF_INET, SOCK_STREAM, 0);
-	printk("sockfd_srv = 0x%p\n", sockfd_srv);
+	// printk("sockfd_srv = 0x%p\n", sockfd_srv);
 	if (sockfd_srv == NULL)
 	{
 		printk("socket failed\n");
@@ -537,16 +543,35 @@ int tcp_srv(void *arg)
 		printk("accept failed\n");
 		return -1;
 	}
-	else
-		printk("sockfd_cli = 0x%p\n", sockfd_cli);
+	else {
+		// printk("sockfd_cli = 0x%p\n", sockfd_cli);
+	}
 	
 	tmp = inet_ntoa(&addr_cli.sin_addr);
 	printk("got connected from : %s %d\n", tmp, ntohs(addr_cli.sin_port));
 	kfree(tmp);
+
+	printk(KERN_INFO "kvm-dsm-eval: Node 1 recving ...\n");
 	
-	len = sprintf(buf, "%s", "Hello, welcome to ksocket tcp srv service\n");
-	ksend(sockfd_cli, buf, len, 0);
-	
+	// len = sprintf(buf, "%s", "Hello, welcome to ksocket tcp srv service\n");
+	// ksend(sockfd_cli, buf, len, 0);
+
+	for (j = 0; j < 1; ++j) {
+		for (k = 6; k <= SIZE_SHIFT; ++k) {
+			for (m = 0; m < EVAL_ITER; ++m) {
+				length = krecv(sockfd_cli, (char *) buf, size << k, 0);
+				if (unlikely(length != (size << k))) {
+					printk(KERN_ERR "kvm-dsm-eval: size mismatch. \n");
+				}
+
+				length = ksend(sockfd_cli, (const char *) buf, size << k, 0);
+				if (unlikely(length != (size << k))) {
+					printk(KERN_ERR "kvm-dsm-eval: size mismatch. \n");
+				}
+			}
+		}
+	}
+	/*
 	while (1)
 	{
 		memset(buf, 0, sizeof(buf));
@@ -558,7 +583,7 @@ int tcp_srv(void *arg)
 			if (memcmp(buf, "quit", 4) == 0)
 				break;
 		}
-	}
+	}*/
 
 	kclose(sockfd_cli);
 	kclose(sockfd_srv);
@@ -574,8 +599,10 @@ int tcp_cli(void *arg)
 {
 	ksocket_t sockfd_cli;
 	struct sockaddr_in addr_srv;
-	char buf[BUF_SIZE], *tmp;
+	// char *tmp;
 	int addr_len;
+	unsigned long long size = 1, i, j, time, length, k;
+	struct timespec ts_start, ts_end;
 
 #ifdef KSOCKET_ADDR_SAFE
 	mm_segment_t old_fs;
@@ -585,12 +612,12 @@ int tcp_cli(void *arg)
 
 	memset(&addr_srv, 0, sizeof(addr_srv));
 	addr_srv.sin_family = AF_INET;
-	addr_srv.sin_port = htons(4444);
-	addr_srv.sin_addr.s_addr = inet_addr("127.0.0.1");;
+	addr_srv.sin_port = htons(port);
+	addr_srv.sin_addr.s_addr = inet_addr("10.0.1.194");;
 	addr_len = sizeof(struct sockaddr_in);
 	
 	sockfd_cli = ksocket(AF_INET, SOCK_STREAM, 0);
-	printk("sockfd_cli = 0x%p\n", sockfd_cli);
+	// printk("sockfd_cli = 0x%p\n", sockfd_cli);
 	if (sockfd_cli == NULL)
 	{
 		printk("socket failed\n");
@@ -602,13 +629,40 @@ int tcp_cli(void *arg)
 		return -1;
 	}
 
-	tmp = "quit";
-	printk("connected to : %s %d\n", tmp, ntohs(addr_srv.sin_port));
+	// tmp = "quit";
+	// printk("connected to : %s %d\n", tmp, ntohs(addr_srv.sin_port));
 	
-	krecv(sockfd_cli, buf, 1024, 0);
-	ksend(sockfd_cli, tmp, 4, 0);
-	printk("got message : %s\n", buf);
+	// krecv(sockfd_cli, buf, 1024, 0);
+	// ksend(sockfd_cli, tmp, 4, 0);
+	// printk("got message : %s\n", buf);
 
+	memset(buf, 111, sizeof(buf));
+	printk(KERN_ERR "kvm-dsm-eval: Node 0 sending ...\n");
+
+	for (j = 0; j < 1; ++j) {
+		for (i = 6; i <= SIZE_SHIFT; ++i) {
+			getnstimeofday(&ts_start);
+
+			for (k = 0; k < EVAL_ITER; ++k) {
+				length = ksend(sockfd_cli, (const char *) buf, size << i, 0);
+				if (unlikely(length != (size << i))) {
+					printk(KERN_ERR "kvm-dsm-eval: size mismatch. \n");
+				}
+				
+				length = krecv(sockfd_cli, (char *) buf, size << i, 0);
+				if (unlikely(length != (size << i))) {
+					printk(KERN_ERR "kvm-dsm-eval: size mismatch. \n");
+				}
+			}
+
+			getnstimeofday(&ts_end);
+			time = timespec_diff_ns(&ts_end, &ts_start);
+
+			printk(KERN_ERR "kvm-dsm-eval: size %llu, took %llu ns\n",
+				size << i, time);
+			msleep(200);
+		}
+	}
 	kclose(sockfd_cli);
 #ifdef KSOCKET_ADDR_SAFE
 		set_fs(old_fs);
@@ -626,7 +680,7 @@ static int ksocket_init(void)
 	if (server) {
 		kthread_run(tcp_srv, NULL, "tcp_srv_kthread");
 	} else {
-		kthread_run(tcp_cli,NULL,"tcp_cli_kthread");
+		kthread_run(tcp_cli, NULL,"tcp_cli_kthread");
 	}
 
 	return 0;
